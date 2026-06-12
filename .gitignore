@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.Python
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Environment
+.env
+*.env
+!.env.example
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# NOTE: ML artifacts (model.pkl, preprocessor.pkl, feature_importance.json) are
+# committed so the service runs out of the box. Regenerate with:
+#   cd fastapi_ml && python -m ml.train_model
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

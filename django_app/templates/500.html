@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Server error &middot; AcadPredict AI{% endblock %}
+{% block heading %}Server error{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="empty-state">
+    <p class="stat-value" style="font-size:3rem; color:var(--danger)">500</p>
+    <p>Something went wrong on our side. Please try again shortly.</p>
+    <a href="{% url 'dashboard' %}" class="btn btn-primary">Back to dashboard</a>
+  </div>
+</div>
+{% endblock %}
+{% block auth_content %}
+<div class="auth-wrap"><div class="auth-card" style="text-align:center">
+  <p class="stat-value" style="font-size:3rem; color:var(--danger)">500</p>
+  <p class="muted">Something went wrong.</p>
+  <a href="{% url 'login' %}" class="btn btn-primary" style="width:100%">Go to sign in</a>
+</div></div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Result {{ student.student_ref }} &middot; AcadPredict AI{% endblock %}
+{% block heading %}Prediction Result{% endblock %}
+{% block content %}
+<div class="grid grid-2" style="margin-bottom:1.25rem; grid-template-columns: 1fr 1fr;">
+  <div class="card">
+    <p class="card-title">Student Reference</p>
+    <p class="stat-value mono" style="font-size:1.4rem">{{ student.student_ref }}</p>
+    <p class="muted small">Submitted {{ prediction.created_at|date:"d M Y, H:i" }}</p>
+    <div style="margin-top:1rem">
+      <span class="badge badge-lg {{ prediction.badge_class }}">{{ prediction.predicted_class }}</span>
+    </div>
+    <div style="margin-top:1.25rem">
+      <p class="card-title">Model Confidence &mdash; {{ prediction.confidence_pct }}%</p>
+      <div class="progress"><div class="progress-bar" style="width: {{ prediction.confidence_pct }}%"></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Key Contributing Factors</h3>
+    {% if top_scores %}
+    <canvas id="factorChart" height="200"></canvas>
+    {% else %}
+    <p class="muted">No factor data available.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="ai-box" style="margin-bottom:1.25rem">
+  <h3>AI Academic Advisor Recommendation</h3>
+  <p class="rec-text">{{ prediction.recommendation }}</p>
+</div>
+
+<div class="page-actions no-print">
+  <a href="{% url 'dashboard' %}" class="btn btn-ghost">Back to dashboard</a>
+  <button type="button" class="btn btn-primary" onclick="window.print()">Print result</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script id="factor-data" type="application/json">{{ top_scores_json|safe }}</script>
+<script>
+  (function () {
+    var el = document.getElementById('factor-data');
+    if (!el) return;
+    var data = JSON.parse(el.textContent || '[]');
+    if (!data.length) return;
+    var ctx = document.getElementById('factorChart');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.map(function (d) { return d.feature.replace(/_/g, ' '); }),
+        datasets: [{
+          label: 'Importance',
+          data: data.map(function (d) { return d.importance; }),
+          backgroundColor: '#2563EB'
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, grid: { color: '#EBF2FF' } }, y: { grid: { display: false } } }
+      }
+    });
+  })();
+</script>
+{% endblock %}

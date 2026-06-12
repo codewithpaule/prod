@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Students &middot; AcadPredict AI{% endblock %}
+{% block heading %}Students{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="section-head">
+    <h3>All Predictions <span class="muted small">({{ total }})</span></h3>
+    <div class="page-actions">
+      <a href="{% url 'students' %}" class="btn btn-ghost btn-sm {% if not risk %}btn-primary{% endif %}">All</a>
+      <a href="?risk=High" class="btn btn-ghost btn-sm">High</a>
+      <a href="?risk=Average" class="btn btn-ghost btn-sm">Average</a>
+      <a href="?risk=At-Risk" class="btn btn-ghost btn-sm">At-Risk</a>
+      <a href="{% url 'export' %}" class="btn btn-primary btn-sm">Export CSV</a>
+    </div>
+  </div>
+
+  {% if page_obj.object_list %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Student</th><th>Level</th><th>Class</th><th>Confidence</th><th>Date</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for pred in page_obj %}
+        <tr>
+          <td class="mono">{{ pred.student.student_ref }}</td>
+          <td>{{ pred.student.level }}</td>
+          <td><span class="badge {{ pred.badge_class }}">{{ pred.predicted_class }}</span></td>
+          <td class="mono">{{ pred.confidence_pct }}%</td>
+          <td class="muted">{{ pred.created_at|date:"d M Y, H:i" }}</td>
+          <td><a href="{% url 'results' pred.student.id %}" class="btn btn-ghost btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{% if risk %}&risk={{ risk }}{% endif %}">Previous</a>
+    {% endif %}
+    <span class="muted small">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}{% if risk %}&risk={{ risk }}{% endif %}">Next</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty-state">
+    <p>No predictions yet.</p>
+    <a href="{% url 'predict' %}" class="btn btn-primary">Create a prediction</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard &middot; AcadPredict AI{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="grid grid-4" style="margin-bottom:1.25rem">
+  <div class="card">
+    <p class="card-title">Total Predictions</p>
+    <p class="stat-value">{{ total }}</p>
+  </div>
+  <div class="card">
+    <p class="card-title">High Performers</p>
+    <p class="stat-value stat-high">{{ high_count }}</p>
+  </div>
+  <div class="card">
+    <p class="card-title">Average</p>
+    <p class="stat-value stat-average">{{ average_count }}</p>
+  </div>
+  <div class="card">
+    <p class="card-title">At-Risk</p>
+    <p class="stat-value stat-risk">{{ risk_count }}</p>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-bottom:1.25rem">
+  <div class="card">
+    <h3>Performance Distribution</h3>
+    <canvas id="distributionChart" height="220"></canvas>
+  </div>
+  <div class="card">
+    <h3>Top Feature Importances</h3>
+    <canvas id="importanceChart" height="220"></canvas>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1.25rem">
+  <h3>Predictions Submitted (last 30 days)</h3>
+  <canvas id="trendChart" height="90"></canvas>
+</div>
+
+<div class="card">
+  <div class="section-head">
+    <h3>Recent Predictions</h3>
+    <a href="{% url 'students' %}" class="btn btn-ghost btn-sm">View all</a>
+  </div>
+  {% if recent %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Student</th><th>Class</th><th>Confidence</th><th>Date</th></tr></thead>
+      <tbody>
+        {% for pred in recent %}
+        <tr>
+          <td class="mono"><a href="{% url 'results' pred.student.id %}">{{ pred.student.student_ref }}</a></td>
+          <td><span class="badge {{ pred.badge_class }}">{{ pred.predicted_class }}</span></td>
+          <td class="mono">{{ pred.confidence_pct }}%</td>
+          <td class="muted">{{ pred.created_at|date:"d M Y, H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">No predictions yet. <a href="{% url 'predict' %}">Create your first prediction</a>.</div>
+  {% endif %}
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script id="dist-data" type="application/json">{{ distribution_json|safe }}</script>
+<script id="trend-data" type="application/json">{{ per_day_json|safe }}</script>
+<script id="importance-data" type="application/json">{{ feature_importance_json|safe }}</script>
+{% load static %}
+<script src="{% static 'js/dashboard.js' %}"></script>
+{% endblock %}

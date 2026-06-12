@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Bulk Upload &middot; AcadPredict AI{% endblock %}
+{% block heading %}Bulk Upload{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:1.25rem">
+  <div class="section-head">
+    <h3>Upload Student CSV</h3>
+    <a href="{% url 'sample_csv' %}" class="btn btn-ghost btn-sm">Download sample CSV</a>
+  </div>
+  <p class="muted small">
+    The CSV columns must exactly match the student fields. Malformed rows are
+    reported and skipped; valid rows are scored and saved.
+  </p>
+  <form method="post" action="{% url 'upload' %}" enctype="multipart/form-data" id="upload-form">
+    {% csrf_token %}
+    <div class="field" style="max-width:420px">
+      <label for="{{ form.csv_file.id_for_label }}">{{ form.csv_file.label }}</label>
+      {{ form.csv_file }}
+      {% if form.csv_file.errors %}<span class="field-error">{{ form.csv_file.errors|striptags }}</span>{% endif %}
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" id="upload-btn">
+        <span class="spinner" id="upload-spinner"></span>
+        <span id="upload-label">Upload &amp; Predict</span>
+      </button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Required Columns</h3>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>#</th><th>Column</th></tr></thead>
+      <tbody>
+        {% for col in columns %}
+        <tr><td class="muted">{{ forloop.counter }}</td><td class="mono">{{ col }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById('upload-form').addEventListener('submit', function () {
+    document.getElementById('upload-spinner').style.display = 'inline-block';
+    document.getElementById('upload-label').textContent = 'Processing...';
+    document.getElementById('upload-btn').setAttribute('disabled', 'disabled');
+  });
+</script>
+{% endblock %}

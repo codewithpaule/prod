@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Sign in &middot; AcadPredict AI{% endblock %}
+{% block auth_content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark">AP</span>
+      <span>AcadPredict<span class="brand-ai" style="color:#2563EB"> AI</span></span>
+    </div>
+    <p class="auth-sub">Student academic performance prediction</p>
+    {% if messages %}
+      {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+    <form method="post" action="{% url 'login' %}{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}">
+      {% csrf_token %}
+      <div class="field" style="margin-bottom:1rem">
+        <label for="id_username">Username</label>
+        <input class="input" type="text" name="username" id="id_username" autocomplete="username" required />
+      </div>
+      <div class="field" style="margin-bottom:1.25rem">
+        <label for="id_password">Password</label>
+        <input class="input" type="password" name="password" id="id_password" autocomplete="current-password" required />
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Sign in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

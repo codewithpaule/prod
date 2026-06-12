@@ -1,0 +1,62 @@
+[
+  {
+    "feature": "self_rated_perf",
+    "importance": 0.14016792308268125
+  },
+  {
+    "feature": "courses_failed",
+    "importance": 0.09970284973873098
+  },
+  {
+    "feature": "study_hours",
+    "importance": 0.07276777381631652
+  },
+  {
+    "feature": "attendance",
+    "importance": 0.07017239686586574
+  },
+  {
+    "feature": "family_income",
+    "importance": 0.06595781066590858
+  },
+  {
+    "feature": "mother_education",
+    "importance": 0.06526098659473595
+  },
+  {
+    "feature": "father_education",
+    "importance": 0.0648511294077986
+  },
+  {
+    "feature": "level",
+    "importance": 0.06448581275551758
+  },
+  {
+    "feature": "stress_level",
+    "importance": 0.059694900906318675
+  },
+  {
+    "feature": "sleep_hours",
+    "importance": 0.05863028302503414
+  },
+  {
+    "feature": "financial_stress",
+    "importance": 0.05749530103488683
+  },
+  {
+    "feature": "motivation",
+    "importance": 0.05505484133169282
+  },
+  {
+    "feature": "age_range",
+    "importance": 0.054646398486852335
+  },
+  {
+    "feature": "part_time_work",
+    "importance": 0.043636402279373085
+  },
+  {
+    "feature": "gender",
+    "importance": 0.02747519000828702
+  }
+]
