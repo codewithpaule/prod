@@ -15,18 +15,11 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-dev-key-change-me")
 
 DEBUG = os.environ.get("DEBUG", "False").lower() in {"1", "true", "yes"}
 
-ALLOWED_HOSTS = [
-    h.strip()
-    for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-    if h.strip()
-]
+ALLOWED_HOSTS = ["*"]
 
-# Railway / proxy support
-CSRF_TRUSTED_ORIGINS = [
-    o.strip()
-    for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
-    if o.strip()
-]
+# Railway / Replit proxy support
+_csrf_origins = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(",") if o.strip()]
 
 # URL of the FastAPI ML service.
 FASTAPI_URL = os.environ.get("FASTAPI_URL", "http://127.0.0.1:8001")
