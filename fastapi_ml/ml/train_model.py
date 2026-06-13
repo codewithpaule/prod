@@ -1,10 +1,8 @@
 """Train and compare models for AcadPredict AI.
 
-Generates a realistic synthetic dataset of Nigerian university students (no real
-student data is used), engineers a CGPA-derived ``performance_class`` target,
-then trains and compares four classifiers with stratified cross-validation. The
-Random Forest (primary model) is persisted to ``model.pkl`` and the fitted
-label encoders to ``preprocessor.pkl``.
+Generates a realistic synthetic dataset of Nigerian university students, then
+optionally blends with real survey rows uploaded by the admin. Trains four
+classifiers and persists the best-performing Random Forest to ``model.pkl``.
 
 Run:  python -m ml.train_model   (from the fastapi_ml/ directory)
 """
@@ -18,13 +16,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-    roc_auc_score,
-)
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
@@ -33,12 +25,11 @@ from xgboost import XGBClassifier
 
 try:
     from imblearn.over_sampling import SMOTE
-
     HAS_SMOTE = True
-except Exception:  # pragma: no cover - optional dependency at runtime
+except Exception:
     HAS_SMOTE = False
 
-from ml.categories import CATEGORIES, PERFORMANCE_CLASSES
+from ml.categories import CATEGORIES, PERFORMANCE_CLASSES, CGPA_MIDPOINTS
 
 HERE = Path(__file__).resolve().parent
 MODEL_PATH = HERE / "model.pkl"
@@ -48,48 +39,126 @@ FEATURE_IMPORTANCE_PATH = HERE / "feature_importance.json"
 FEATURES = list(CATEGORIES.keys())
 RNG = np.random.default_rng(42)
 
-# Per-option contribution to a latent "academic strength" score. Higher values
-# push a student towards the High class, lower/negative towards At-Risk.
 SCORE_WEIGHTS: dict[str, dict[str, float]] = {
-    "study_hours": {"<1 hour": -2.0, "1-2 hours": -0.5, "3-4 hours": 1.5, "5+ hours": 2.5},
-    "attendance": {"<50%": -2.5, "50-70%": -0.5, "71-90%": 1.5, ">90%": 2.5},
-    "courses_failed": {"0": 2.5, "1-2": 0.5, "3-4": -1.5, "5+": -3.0},
-    "sleep_hours": {"<4 hours": -1.5, "4-6 hours": 0.5, "7-8 hours": 1.5, ">8 hours": 0.0},
-    "financial_stress": {"None": 1.0, "Low": 0.5, "Moderate": -0.5, "High": -1.5},
-    "motivation": {"Low": -2.0, "Moderate": 0.5, "High": 2.0},
-    "stress_level": {"Low": 1.0, "Moderate": 0.3, "High": -1.0, "Severe": -2.0},
-    "self_rated_perf": {"Poor": -2.0, "Average": -0.2, "Good": 1.5, "Excellent": 2.5},
-    "mother_education": {"None": -0.8, "Primary": -0.3, "Secondary": 0.3, "Tertiary": 0.8, "Postgraduate": 1.2},
-    "father_education": {"None": -0.8, "Primary": -0.3, "Secondary": 0.3, "Tertiary": 0.8, "Postgraduate": 1.2},
-    "family_income": {"Low": -0.8, "Lower-Middle": -0.3, "Middle": 0.2, "Upper-Middle": 0.6, "High": 1.0},
-    "part_time_work": {"No": 0.4, "Yes - occasionally": 0.0, "Yes - regularly": -0.8},
+    "current_cgpa": {
+        "First Class (4.5-5.0)": 6.0,
+        "Second Class Upper (3.5-4.4)": 2.5,
+        "Second Class Lower (2.5-3.4)": -0.5,
+        "Third Class (1.5-2.4)": -3.0,
+        "Below 1.5": -6.0,
+    },
+    "courses_failed": {
+        "None": 2.0, "1-2": 0.5, "3-5": -1.5, "More than 5": -3.0,
+    },
+    "study_hours": {
+        "Less than 1 hour": -2.0, "1-2 hours": -0.5,
+        "3-4 hours": 1.5, "More than 4 hours": 2.5,
+    },
+    "attendance": {
+        "Always (90-100%)": 2.5, "Often (70-89%)": 1.0,
+        "Sometimes (50-69%)": -0.5, "Rarely (<50%)": -2.5,
+    },
+    "motivation": {
+        "Very high": 2.5, "High": 1.5, "Moderate": 0.0, "Low": -2.0,
+    },
+    "self_rated_perf": {
+        "Excellent": 2.5, "Good": 1.0, "Average": -0.5,
+        "Poor": -1.5, "Very Poor": -2.5,
+    },
+    "stress_level": {
+        "Low": 1.0, "Moderate": 0.2, "High": -1.0, "Very high": -2.0,
+    },
+    "class_prep": {
+        "Always": 2.0, "Sometimes": 0.5, "Rarely": -0.5, "Never": -1.5,
+    },
+    "resource_use": {
+        "Very often": 1.5, "Sometimes": 0.5, "Rarely": -0.5, "Never": -1.0,
+    },
+    "past_questions": {
+        "Always before exams": 2.0, "Sometimes": 0.5,
+        "Rarely": -0.5, "Never": -1.0,
+    },
+    "group_study": {
+        "Yes regularly": 1.0, "Occasionally": 0.3, "No": -0.3,
+    },
+    "sleep_hours": {
+        "Less than 4 hours": -1.5, "4-6 hours": 0.0,
+        "6-8 hours": 1.5, "More than 8 hours": 0.3,
+    },
+    "parental_involvement": {
+        "Very involved": 1.0, "Somewhat involved": 0.3, "Not involved": -0.5,
+    },
+    "course_interest": {
+        "Yes my passion": 1.5, "Partially interested": 0.3,
+        "No - family pressure": -0.8, "No - no other choice": -1.2,
+    },
+    "part_time_work": {
+        "No": 0.5, "Occasionally": -0.2, "Yes regularly": -1.0,
+    },
+    "family_responsibilities": {
+        "Not at all": 0.5, "Slightly": 0.0, "Moderately": -0.5,
+        "Significantly": -1.5,
+    },
+    "internet_access": {
+        "Very stable": 0.8, "Mostly stable": 0.3,
+        "Unstable": -0.3, "Rarely have access": -0.8,
+    },
+    "distance": {
+        "On campus": 0.5, "Less than 30 mins": 0.3,
+        "30 mins-1 hour": -0.2, "More than 1 hour": -0.8,
+    },
+    "extracurricular": {
+        "Yes heavily involved": -0.3, "Occasionally": 0.3, "No": 0.0,
+    },
+    "father_education": {
+        "No formal education": -0.5, "Primary": -0.3, "Secondary": 0.0,
+        "OND/NCE": 0.3, "Bachelor's degree": 0.6, "Postgraduate": 1.0,
+    },
+    "mother_education": {
+        "No formal education": -0.5, "Primary": -0.3, "Secondary": 0.0,
+        "OND/NCE": 0.3, "Bachelor's degree": 0.6, "Postgraduate": 1.0,
+    },
+    "family_income": {
+        "Below \u20a650,000": -1.0,
+        "\u20a650,000-\u20a6150,000": -0.3,
+        "\u20a6150,000-\u20a6300,000": 0.2,
+        "\u20a6300,000-\u20a6500,000": 0.6,
+        "Above \u20a6500,000": 1.0,
+    },
+    "household_size": {
+        "1-3": 0.5, "4-6": 0.0, "7-10": -0.5, "More than 10": -1.0,
+    },
 }
 
 
 def _cgpa_from_score(score: float) -> float:
-    """Map a latent strength score to a plausible CGPA in [0, 5]."""
-    base = 2.7 + 0.18 * score
-    noise = RNG.normal(0.0, 0.45)
+    base = 3.0 + 0.12 * score
+    noise = RNG.normal(0.0, 0.35)
     return float(np.clip(base + noise, 0.0, 5.0))
 
 
 def _class_from_cgpa(cgpa: float) -> str:
+    if cgpa >= 4.5:
+        return "First Class (4.5-5.0)"
     if cgpa >= 3.5:
-        return "High"
+        return "Second Class Upper (3.5-4.4)"
     if cgpa >= 2.5:
-        return "Average"
-    return "At-Risk"
+        return "Second Class Lower (2.5-3.4)"
+    if cgpa >= 1.5:
+        return "Third Class (1.5-2.4)"
+    return "Below Third Class (<1.5)"
 
 
 def generate_synthetic_data(n: int = 4000) -> pd.DataFrame:
-    """Generate a synthetic, learnable dataset of student survey rows."""
-    rows: list[dict[str, str | float]] = []
+    rows: list[dict] = []
     for _ in range(n):
-        row: dict[str, str | float] = {
-            feature: str(RNG.choice(options)) for feature, options in CATEGORIES.items()
+        row: dict = {
+            feature: str(RNG.choice(options))
+            for feature, options in CATEGORIES.items()
         }
         score = sum(
-            SCORE_WEIGHTS.get(feature, {}).get(str(row[feature]), 0.0) for feature in FEATURES
+            SCORE_WEIGHTS.get(feature, {}).get(str(row[feature]), 0.0)
+            for feature in FEATURES
         )
         cgpa = _cgpa_from_score(score)
         row["cgpa"] = cgpa
@@ -98,15 +167,9 @@ def generate_synthetic_data(n: int = 4000) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def clean_contradictions(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop rows where CGPA and self-rated performance badly contradict."""
-    contradiction = (
-        (df["performance_class"] == "At-Risk") & (df["self_rated_perf"] == "Excellent")
-    ) | ((df["performance_class"] == "High") & (df["self_rated_perf"] == "Poor"))
-    return df.loc[~contradiction].reset_index(drop=True)
-
-
-def encode_features(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, LabelEncoder]]:
+def encode_features(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, LabelEncoder]]:
     encoders: dict[str, LabelEncoder] = {}
     encoded = pd.DataFrame()
     for feature in FEATURES:
@@ -121,7 +184,7 @@ def _build_models() -> dict[str, object]:
     return {
         "LogisticRegression": LogisticRegression(max_iter=1000),
         "DecisionTree": DecisionTreeClassifier(random_state=42),
-        "RandomForest": RandomForestClassifier(n_estimators=100, random_state=42),
+        "RandomForest": RandomForestClassifier(n_estimators=150, random_state=42),
         "XGBoost": XGBClassifier(random_state=42, eval_metric="mlogloss"),
     }
 
@@ -129,54 +192,40 @@ def _build_models() -> dict[str, object]:
 def _evaluate(name: str, model, X: np.ndarray, y: np.ndarray) -> dict[str, float]:
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     preds = cross_val_predict(model, X, y, cv=skf)
-    proba = cross_val_predict(model, X, y, cv=skf, method="predict_proba")
     metrics = {
         "accuracy": accuracy_score(y, preds),
-        "precision": precision_score(y, preds, average="weighted", zero_division=0),
-        "recall": recall_score(y, preds, average="weighted", zero_division=0),
         "f1": f1_score(y, preds, average="weighted", zero_division=0),
-        "roc_auc": roc_auc_score(y, proba, multi_class="ovr", average="weighted"),
     }
     print(
-        f"{name:<18} "
-        f"acc={metrics['accuracy']:.3f} "
-        f"prec={metrics['precision']:.3f} "
-        f"rec={metrics['recall']:.3f} "
-        f"f1={metrics['f1']:.3f} "
-        f"roc_auc={metrics['roc_auc']:.3f}"
+        f"{name:<18} acc={metrics['accuracy']:.3f} f1={metrics['f1']:.3f}"
     )
     return metrics
 
 
-def main() -> None:
-    print("Generating synthetic dataset...")
-    df = generate_synthetic_data(int(os.environ.get("TRAIN_SAMPLES", "4000")))
-    df = clean_contradictions(df)
-    print(f"Dataset size after cleaning: {len(df)} rows")
-    print("Class distribution:\n", df["performance_class"].value_counts())
-
+def train_from_dataframe(df: pd.DataFrame, verbose: bool = True) -> float:
+    """Core training routine. Returns validation accuracy."""
     X_df, encoders = encode_features(df)
     target_encoder = LabelEncoder()
     target_encoder.fit(PERFORMANCE_CLASSES)
     y = target_encoder.transform(df["performance_class"])
     X = X_df.to_numpy()
 
-    if HAS_SMOTE:
-        print("Applying SMOTE for class balance...")
-        X, y = SMOTE(random_state=42).fit_resample(X, y)
-    else:
-        print("imbalanced-learn not available; skipping SMOTE.")
+    if HAS_SMOTE and len(np.unique(y)) > 1:
+        if verbose:
+            print("Applying SMOTE for class balance…")
+        try:
+            X, y = SMOTE(random_state=42).fit_resample(X, y)
+        except Exception as exc:
+            if verbose:
+                print(f"SMOTE skipped: {exc}")
 
-    print("\nCross-validated model comparison (5-fold StratifiedKFold):")
+    if verbose:
+        print("\nCross-validated comparison (5-fold):")
     results: dict[str, dict[str, float]] = {}
     for name, model in _build_models().items():
         results[name] = _evaluate(name, model, X, y)
 
-    best_name = max(results, key=lambda n: results[n]["f1"])
-    print(f"\nBest model by weighted F1: {best_name}")
-    print("Persisting RandomForest as the primary production model (model.pkl).")
-
-    primary = RandomForestClassifier(n_estimators=100, random_state=42)
+    primary = RandomForestClassifier(n_estimators=150, random_state=42)
     primary.fit(X, y)
     joblib.dump(primary, MODEL_PATH)
 
@@ -189,17 +238,67 @@ def main() -> None:
     joblib.dump(preprocessor, PREPROCESSOR_PATH)
 
     importances = sorted(
-        ({"feature": f, "importance": float(imp)} for f, imp in zip(FEATURES, primary.feature_importances_)),
+        (
+            {"feature": f, "importance": float(imp)}
+            for f, imp in zip(FEATURES, primary.feature_importances_)
+        ),
         key=lambda d: d["importance"],
         reverse=True,
     )
     FEATURE_IMPORTANCE_PATH.write_text(json.dumps(importances, indent=2))
 
-    print("\nFeature importance (sorted descending):")
-    for item in importances:
-        print(f"  {item['feature']:<18} {item['importance']:.4f}")
+    if verbose:
+        print("\nFeature importance:")
+        for item in importances[:10]:
+            print(f"  {item['feature']:<22} {item['importance']:.4f}")
+        print(f"\nSaved: {MODEL_PATH.name}, {PREPROCESSOR_PATH.name}")
 
-    print(f"\nSaved: {MODEL_PATH.name}, {PREPROCESSOR_PATH.name}, {FEATURE_IMPORTANCE_PATH.name}")
+    return float(results["RandomForest"]["accuracy"])
+
+
+def train_with_real_data(
+    real_rows: list[dict],
+    use_synthetic: bool = True,
+    synthetic_n: int = 3000,
+) -> tuple[float, int]:
+    """Blend real survey rows with synthetic data and retrain.
+
+    Returns (accuracy, total_rows_used).
+    Each real_row dict must have all feature keys + 'performance_class'.
+    """
+    frames: list[pd.DataFrame] = []
+
+    if real_rows:
+        real_df = pd.DataFrame(real_rows)
+        for feature, options in CATEGORIES.items():
+            if feature in real_df.columns:
+                real_df = real_df[real_df[feature].isin(options)]
+        real_df = real_df[[*FEATURES, "performance_class"]].dropna()
+        if not real_df.empty:
+            frames.append(real_df)
+
+    if use_synthetic:
+        synth_df = generate_synthetic_data(synthetic_n)
+        frames.append(synth_df[[*FEATURES, "performance_class"]])
+
+    if not frames:
+        raise ValueError("No valid training rows provided.")
+
+    df = pd.concat(frames, ignore_index=True)
+    print(f"Total training rows: {len(df)}")
+    print("Class distribution:\n", df["performance_class"].value_counts())
+
+    accuracy = train_from_dataframe(df)
+    return accuracy, len(df)
+
+
+def main() -> None:
+    print("Generating synthetic dataset…")
+    n = int(os.environ.get("TRAIN_SAMPLES", "5000"))
+    df = generate_synthetic_data(n)
+    print(f"Dataset size: {len(df)}")
+    print("Class distribution:\n", df["performance_class"].value_counts())
+    train_from_dataframe(df)
 
 
 if __name__ == "__main__":

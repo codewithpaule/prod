@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}Train Model &middot; AcadPredict AI{% endblock %}
+{% block heading %}Train Model with Your Data{% endblock %}
+{% block content %}
+<div class="grid grid-2" style="margin-bottom:1.25rem; grid-template-columns: 1.5fr 1fr; align-items:start;">
+
+  <div class="card">
+    <h3>Upload Google Form Survey Data</h3>
+    <p class="muted small" style="margin-bottom:1rem">
+      Export your Google Form responses as <strong>Excel (.xlsx)</strong> or <strong>CSV</strong> and upload it here.
+      The system will automatically map the 26 survey question columns to model features and retrain the prediction model
+      with your real student data.
+    </p>
+
+    <form method="post" enctype="multipart/form-data" action="{% url 'train_model' %}">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-error">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="field" style="margin-bottom:1rem">
+        <label for="{{ form.data_file.id_for_label }}">{{ form.data_file.label }}</label>
+        {{ form.data_file }}
+        {% if form.data_file.errors %}<span class="field-error">{{ form.data_file.errors|striptags }}</span>{% endif %}
+      </div>
+
+      <div class="field" style="margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem">
+        {{ form.use_synthetic }}
+        <label for="{{ form.use_synthetic.id_for_label }}" style="margin:0;cursor:pointer">{{ form.use_synthetic.label }}</label>
+      </div>
+
+      <div class="field" style="margin-bottom:1.25rem">
+        <label for="{{ form.synthetic_n.id_for_label }}">{{ form.synthetic_n.label }}</label>
+        {{ form.synthetic_n }}
+        {% if form.synthetic_n.errors %}<span class="field-error">{{ form.synthetic_n.errors|striptags }}</span>{% endif %}
+        <p class="muted small" style="margin-top:0.3rem">
+          Blending synthetic rows helps prevent overfitting when you have fewer than 500 real responses.
+        </p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="train-btn">
+          <span class="spinner" id="train-spinner"></span>
+          <span id="train-label">Train Model</span>
+        </button>
+        <a href="{% url 'dashboard' %}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:1rem">
+      <h3 style="margin-bottom:0.5rem">How to Export from Google Forms</h3>
+      <ol class="muted small" style="padding-left:1.25rem;line-height:2">
+        <li>Open your Google Form</li>
+        <li>Click the <strong>Responses</strong> tab</li>
+        <li>Click the Google Sheets icon to open responses in Sheets</li>
+        <li>In Sheets: <strong>File → Download → Microsoft Excel (.xlsx)</strong></li>
+        <li>Upload the downloaded file here</li>
+      </ol>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem">
+      <h3 style="margin-bottom:0.5rem">Recognised Survey Questions</h3>
+      <p class="muted small" style="margin-bottom:0.5rem">The system maps these 26 questions automatically:</p>
+      <ul class="muted small" style="padding-left:1.25rem;line-height:1.9">
+        <li>Q1 — Gender</li>
+        <li>Q2 — Age range</li>
+        <li>Q3 — Level of study</li>
+        <li>Q4 — Current CGPA range <span style="color:#2563EB">(used as prediction label)</span></li>
+        <li>Q5 — Courses failed/carried over</li>
+        <li>Q6 — Father's education</li>
+        <li>Q7 — Mother's education</li>
+        <li>Q8 — Family monthly income</li>
+        <li>Q9 — Household size</li>
+        <li>Q10 — Parental involvement</li>
+        <li>Q11 — Study hours per day</li>
+        <li>Q12 — Lecture attendance</li>
+        <li>Q13 — Class preparation</li>
+        <li>Q14 — Academic resource use</li>
+        <li>Q15 — Sleep hours</li>
+        <li>Q16 — Group study</li>
+        <li>Q17 — Past questions practice</li>
+        <li>Q18 — Part-time work</li>
+        <li>Q19 — Distance from campus</li>
+        <li>Q20 — Internet access</li>
+        <li>Q21 — Extracurricular activities</li>
+        <li>Q22 — Family responsibilities</li>
+        <li>Q23 — Stress/mental health</li>
+        <li>Q24 — Course interest</li>
+        <li>Q25 — Academic motivation</li>
+        <li>Q26 — Self-rated performance</li>
+      </ul>
+    </div>
+
+    <div class="card" style="background:#FFF7ED;border-color:#FED7AA">
+      <p class="small" style="color:#92400E">
+        <strong>Note:</strong> Training time depends on the number of rows (typically 30–120 seconds).
+        The page will show results when complete. Do not close the tab while training is running.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById('train-btn').addEventListener('click', function () {
+    document.getElementById('train-spinner').style.display = 'inline-block';
+    document.getElementById('train-label').textContent = 'Training… please wait';
+    this.disabled = true;
+  });
+</script>
+{% endblock %}

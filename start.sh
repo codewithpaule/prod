@@ -14,7 +14,7 @@ sleep 2
 
 # Run Django migrations and collect static files
 cd django_app
-python manage.py migrate --run-syncdb
+python manage.py migrate
 python manage.py collectstatic --noinput
 
 # Start Django on port 5000

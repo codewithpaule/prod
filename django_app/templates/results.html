@@ -2,19 +2,28 @@
 {% block title %}Result {{ student.student_ref }} &middot; AcadPredict AI{% endblock %}
 {% block heading %}Prediction Result{% endblock %}
 {% block content %}
+
 <div class="grid grid-2" style="margin-bottom:1.25rem; grid-template-columns: 1fr 1fr;">
   <div class="card">
     <p class="card-title">Student Reference</p>
     <p class="stat-value mono" style="font-size:1.4rem">{{ student.student_ref }}</p>
     <p class="muted small">Submitted {{ prediction.created_at|date:"d M Y, H:i" }}</p>
+
     <div style="margin-top:1rem">
-      <span class="badge badge-lg {{ prediction.badge_class }}">{{ prediction.predicted_class }}</span>
+      <p class="card-title" style="margin-bottom:0.35rem">Predicted End-of-Session CGPA</p>
+      <span class="badge badge-lg {{ prediction.badge_class }}">{{ prediction.estimated_cgpa_range }}</span>
+      <p style="margin-top:0.6rem;font-size:1.5rem;font-weight:700;color:var(--primary)">
+        ~{{ prediction.estimated_cgpa_midpoint|floatformat:2 }}
+        <span style="font-size:0.85rem;font-weight:400;color:var(--text-muted)">estimated CGPA</span>
+      </p>
     </div>
+
     <div style="margin-top:1.25rem">
       <p class="card-title">Model Confidence &mdash; {{ prediction.confidence_pct }}%</p>
       <div class="progress"><div class="progress-bar" style="width: {{ prediction.confidence_pct }}%"></div></div>
     </div>
   </div>
+
   <div class="card">
     <h3>Key Contributing Factors</h3>
     {% if top_scores %}
@@ -22,6 +31,20 @@
     {% else %}
     <p class="muted">No factor data available.</p>
     {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:1.25rem">
+  <h3 style="margin-bottom:0.75rem">Student Survey Profile</h3>
+  <div class="detail-grid">
+    <div class="detail-row"><span class="detail-label">Current CGPA</span><span class="detail-value">{{ student.current_cgpa }}</span></div>
+    <div class="detail-row"><span class="detail-label">Level</span><span class="detail-value">{{ student.level }}</span></div>
+    <div class="detail-row"><span class="detail-label">Courses Failed</span><span class="detail-value">{{ student.courses_failed }}</span></div>
+    <div class="detail-row"><span class="detail-label">Study Hours/Day</span><span class="detail-value">{{ student.study_hours }}</span></div>
+    <div class="detail-row"><span class="detail-label">Attendance</span><span class="detail-value">{{ student.attendance }}</span></div>
+    <div class="detail-row"><span class="detail-label">Motivation</span><span class="detail-value">{{ student.motivation }}</span></div>
+    <div class="detail-row"><span class="detail-label">Stress Level</span><span class="detail-value">{{ student.stress_level }}</span></div>
+    <div class="detail-row"><span class="detail-label">Sleep Hours</span><span class="detail-value">{{ student.sleep_hours }}</span></div>
   </div>
 </div>
 
@@ -58,7 +81,10 @@
       options: {
         indexAxis: 'y',
         plugins: { legend: { display: false } },
-        scales: { x: { beginAtZero: true, grid: { color: '#EBF2FF' } }, y: { grid: { display: false } } }
+        scales: {
+          x: { beginAtZero: true, grid: { color: '#EBF2FF' } },
+          y: { grid: { display: false } }
+        }
       }
     });
   })();

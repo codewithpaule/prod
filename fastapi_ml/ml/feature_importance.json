@@ -1,62 +1,106 @@
 [
   {
+    "feature": "current_cgpa",
+    "importance": 0.12949510278912835
+  },
+  {
     "feature": "self_rated_perf",
-    "importance": 0.14016792308268125
-  },
-  {
-    "feature": "courses_failed",
-    "importance": 0.09970284973873098
-  },
-  {
-    "feature": "study_hours",
-    "importance": 0.07276777381631652
+    "importance": 0.050595089637829306
   },
   {
     "feature": "attendance",
-    "importance": 0.07017239686586574
-  },
-  {
-    "feature": "family_income",
-    "importance": 0.06595781066590858
-  },
-  {
-    "feature": "mother_education",
-    "importance": 0.06526098659473595
-  },
-  {
-    "feature": "father_education",
-    "importance": 0.0648511294077986
-  },
-  {
-    "feature": "level",
-    "importance": 0.06448581275551758
-  },
-  {
-    "feature": "stress_level",
-    "importance": 0.059694900906318675
-  },
-  {
-    "feature": "sleep_hours",
-    "importance": 0.05863028302503414
-  },
-  {
-    "feature": "financial_stress",
-    "importance": 0.05749530103488683
+    "importance": 0.04276348226163973
   },
   {
     "feature": "motivation",
-    "importance": 0.05505484133169282
+    "importance": 0.04239669567757217
+  },
+  {
+    "feature": "courses_failed",
+    "importance": 0.04210831511681769
+  },
+  {
+    "feature": "mother_education",
+    "importance": 0.040356947394001697
+  },
+  {
+    "feature": "father_education",
+    "importance": 0.04020780292469604
+  },
+  {
+    "feature": "resource_use",
+    "importance": 0.0380021259406298
+  },
+  {
+    "feature": "study_hours",
+    "importance": 0.03667975374006338
+  },
+  {
+    "feature": "stress_level",
+    "importance": 0.036549411326187546
+  },
+  {
+    "feature": "level",
+    "importance": 0.03629678350519577
+  },
+  {
+    "feature": "family_income",
+    "importance": 0.03604815667820263
+  },
+  {
+    "feature": "past_questions",
+    "importance": 0.03545531945035764
+  },
+  {
+    "feature": "course_interest",
+    "importance": 0.03521526215529866
+  },
+  {
+    "feature": "class_prep",
+    "importance": 0.034643001261275445
+  },
+  {
+    "feature": "internet_access",
+    "importance": 0.03347731405880584
+  },
+  {
+    "feature": "household_size",
+    "importance": 0.03206378261127907
+  },
+  {
+    "feature": "family_responsibilities",
+    "importance": 0.03167437849030602
+  },
+  {
+    "feature": "distance",
+    "importance": 0.03156745582192769
+  },
+  {
+    "feature": "sleep_hours",
+    "importance": 0.03060614932566918
   },
   {
     "feature": "age_range",
-    "importance": 0.054646398486852335
+    "importance": 0.03032133592749795
   },
   {
     "feature": "part_time_work",
-    "importance": 0.043636402279373085
+    "importance": 0.02857841741091559
+  },
+  {
+    "feature": "group_study",
+    "importance": 0.02769600695463145
+  },
+  {
+    "feature": "parental_involvement",
+    "importance": 0.027692901640926422
   },
   {
     "feature": "gender",
-    "importance": 0.02747519000828702
+    "importance": 0.025101321920308117
+  },
+  {
+    "feature": "extracurricular",
+    "importance": 0.024407685978836892
   }
 ]

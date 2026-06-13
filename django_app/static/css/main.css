@@ -160,10 +160,19 @@ table.data tbody tr:nth-child(even) { background: var(--row-even); }
   font-size: 0.78rem; font-weight: 600;
   color: #fff;
 }
+.badge-first { background: #7C3AED; }
 .badge-high { background: var(--success); }
 .badge-average { background: var(--warning); }
+.badge-third { background: #EA580C; }
 .badge-risk { background: var(--danger); }
 .badge-lg { font-size: 1rem; padding: 0.45rem 1.1rem; }
+
+/* ---------- Detail grid (results page) ---------- */
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1.5rem; }
+.detail-row { display: flex; flex-direction: column; padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+.detail-label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.detail-value { font-size: 0.92rem; color: var(--text); margin-top: 0.1rem; }
+.checkbox { width: 1rem; height: 1rem; accent-color: var(--primary); cursor: pointer; }
 
 /* ---------- Progress ---------- */
 .progress { background: var(--row-even); border-radius: 999px; height: 14px; overflow: hidden; }

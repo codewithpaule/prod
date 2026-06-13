@@ -1,0 +1,1 @@
+fastapi_ml/ml/model.pkl filter=lfs diff=lfs merge=lfs -text

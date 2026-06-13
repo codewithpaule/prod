@@ -10,12 +10,13 @@ import numpy as np
 
 from schemas import FeatureScore, StudentFeatures
 from groq_advisor import generate_recommendation
+from ml.categories import CGPA_MIDPOINTS
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = HERE / "ml" / "model.pkl"
 DEFAULT_PREPROCESSOR_PATH = HERE / "ml" / "preprocessor.pkl"
 
-MODEL_VERSION = "1.0"
+MODEL_VERSION = "2.0"
 
 _lock = Lock()
 _model = None
@@ -41,7 +42,6 @@ def preprocessor_path() -> Path:
 
 
 def load_artifacts() -> None:
-    """Load model + preprocessor into memory. Raises if files are missing."""
     global _model, _preprocessor
     with _lock:
         mp, pp = model_path(), preprocessor_path()
@@ -55,6 +55,15 @@ def load_artifacts() -> None:
             )
         _model = joblib.load(mp)
         _preprocessor = joblib.load(pp)
+
+
+def reload_artifacts() -> None:
+    """Force reload after retraining."""
+    global _model, _preprocessor
+    with _lock:
+        _model = None
+        _preprocessor = None
+    load_artifacts()
 
 
 def is_loaded() -> bool:
@@ -82,8 +91,6 @@ def _encode(student: StudentFeatures) -> np.ndarray:
 
 
 def _top_feature_scores(student: StudentFeatures, top_n: int = 5) -> list[FeatureScore]:
-    """Per-student contributing factors: global importance gated by whether the
-    student's value for that feature is a known risk indicator."""
     assert _model is not None and _preprocessor is not None
     order = _preprocessor["feature_order"]
     importances = dict(zip(order, _model.feature_importances_))
@@ -95,7 +102,6 @@ def _top_feature_scores(student: StudentFeatures, top_n: int = 5) -> list[Featur
 
 
 def predict(student: StudentFeatures):
-    """Run a single prediction and attach an AI recommendation."""
     from schemas import PredictionResult
 
     _ensure_loaded()
@@ -108,14 +114,18 @@ def predict(student: StudentFeatures):
     predicted_class = str(classes[idx])
     confidence = float(proba[idx])
 
+    estimated_cgpa_midpoint = CGPA_MIDPOINTS.get(predicted_class, 2.95)
+
     recommendation = generate_recommendation(
-        student.feature_dict(), predicted_class, confidence
+        student.feature_dict(), predicted_class, confidence, estimated_cgpa_midpoint
     )
     feature_scores = _top_feature_scores(student)
 
     return PredictionResult(
         student_ref=student.student_ref,
         predicted_class=predicted_class,
+        estimated_cgpa_range=predicted_class,
+        estimated_cgpa_midpoint=estimated_cgpa_midpoint,
         confidence=confidence,
         recommendation=recommendation,
         feature_scores=feature_scores,

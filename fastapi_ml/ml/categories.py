@@ -1,27 +1,79 @@
 """Canonical categorical option sets shared by training and serving.
 
-These value sets are the single source of truth for the survey fields. The
-Django forms expose the same options so that user input always matches what the
-model was trained on.
+These value sets are the single source of truth for all 26 survey fields.
+The Django forms expose the same options so user input always matches what
+the model was trained on.
 """
 from __future__ import annotations
 
 CATEGORIES: dict[str, list[str]] = {
-    "gender": ["Male", "Female"],
-    "age_range": ["16-18", "19-21", "22-24", "25+"],
+    "gender": ["Male", "Female", "Prefer not to say"],
+    "age_range": ["16-19", "20-23", "24-27", "28+"],
     "level": ["100", "200", "300", "400", "500"],
-    "study_hours": ["<1 hour", "1-2 hours", "3-4 hours", "5+ hours"],
-    "attendance": ["<50%", "50-70%", "71-90%", ">90%"],
-    "courses_failed": ["0", "1-2", "3-4", "5+"],
-    "sleep_hours": ["<4 hours", "4-6 hours", "7-8 hours", ">8 hours"],
-    "financial_stress": ["None", "Low", "Moderate", "High"],
-    "mother_education": ["None", "Primary", "Secondary", "Tertiary", "Postgraduate"],
-    "father_education": ["None", "Primary", "Secondary", "Tertiary", "Postgraduate"],
-    "family_income": ["Low", "Lower-Middle", "Middle", "Upper-Middle", "High"],
-    "part_time_work": ["No", "Yes - occasionally", "Yes - regularly"],
-    "motivation": ["Low", "Moderate", "High"],
-    "stress_level": ["Low", "Moderate", "High", "Severe"],
-    "self_rated_perf": ["Poor", "Average", "Good", "Excellent"],
+    "current_cgpa": [
+        "First Class (4.5-5.0)",
+        "Second Class Upper (3.5-4.4)",
+        "Second Class Lower (2.5-3.4)",
+        "Third Class (1.5-2.4)",
+        "Below 1.5",
+    ],
+    "courses_failed": ["None", "1-2", "3-5", "More than 5"],
+    "father_education": [
+        "No formal education", "Primary", "Secondary",
+        "OND/NCE", "Bachelor's degree", "Postgraduate",
+    ],
+    "mother_education": [
+        "No formal education", "Primary", "Secondary",
+        "OND/NCE", "Bachelor's degree", "Postgraduate",
+    ],
+    "family_income": [
+        "Below \u20a650,000",
+        "\u20a650,000-\u20a6150,000",
+        "\u20a6150,000-\u20a6300,000",
+        "\u20a6300,000-\u20a6500,000",
+        "Above \u20a6500,000",
+    ],
+    "household_size": ["1-3", "4-6", "7-10", "More than 10"],
+    "parental_involvement": ["Very involved", "Somewhat involved", "Not involved"],
+    "study_hours": ["Less than 1 hour", "1-2 hours", "3-4 hours", "More than 4 hours"],
+    "attendance": [
+        "Always (90-100%)", "Often (70-89%)", "Sometimes (50-69%)", "Rarely (<50%)",
+    ],
+    "class_prep": ["Always", "Sometimes", "Rarely", "Never"],
+    "resource_use": ["Very often", "Sometimes", "Rarely", "Never"],
+    "sleep_hours": ["Less than 4 hours", "4-6 hours", "6-8 hours", "More than 8 hours"],
+    "group_study": ["Yes regularly", "Occasionally", "No"],
+    "past_questions": ["Always before exams", "Sometimes", "Rarely", "Never"],
+    "part_time_work": ["Yes regularly", "Occasionally", "No"],
+    "distance": [
+        "On campus", "Less than 30 mins", "30 mins-1 hour", "More than 1 hour",
+    ],
+    "internet_access": [
+        "Very stable", "Mostly stable", "Unstable", "Rarely have access",
+    ],
+    "extracurricular": ["Yes heavily involved", "Occasionally", "No"],
+    "family_responsibilities": ["Not at all", "Slightly", "Moderately", "Significantly"],
+    "stress_level": ["Low", "Moderate", "High", "Very high"],
+    "course_interest": [
+        "Yes my passion", "Partially interested",
+        "No - family pressure", "No - no other choice",
+    ],
+    "motivation": ["Very high", "High", "Moderate", "Low"],
+    "self_rated_perf": ["Excellent", "Good", "Average", "Poor", "Very Poor"],
 }
 
-PERFORMANCE_CLASSES = ["At-Risk", "Average", "High"]
+PERFORMANCE_CLASSES = [
+    "First Class (4.5-5.0)",
+    "Second Class Upper (3.5-4.4)",
+    "Second Class Lower (2.5-3.4)",
+    "Third Class (1.5-2.4)",
+    "Below Third Class (<1.5)",
+]
+
+CGPA_MIDPOINTS: dict[str, float] = {
+    "First Class (4.5-5.0)": 4.75,
+    "Second Class Upper (3.5-4.4)": 3.95,
+    "Second Class Lower (2.5-3.4)": 2.95,
+    "Third Class (1.5-2.4)": 1.95,
+    "Below Third Class (<1.5)": 1.00,
+}
