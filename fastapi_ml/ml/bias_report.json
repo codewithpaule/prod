@@ -1,0 +1,54 @@
+{
+  "overall_accuracy": 0.5103,
+  "subgroup_checks": [
+    {
+      "group": "gender",
+      "value": "Female",
+      "n": 1368,
+      "accuracy": 0.492
+    },
+    {
+      "group": "gender",
+      "value": "Male",
+      "n": 1361,
+      "accuracy": 0.5437
+    },
+    {
+      "group": "gender",
+      "value": "Prefer not to say",
+      "n": 1331,
+      "accuracy": 0.4951
+    },
+    {
+      "group": "level",
+      "value": "300",
+      "n": 823,
+      "accuracy": 0.5152
+    },
+    {
+      "group": "level",
+      "value": "500",
+      "n": 763,
+      "accuracy": 0.5125
+    },
+    {
+      "group": "level",
+      "value": "400",
+      "n": 859,
+      "accuracy": 0.4913
+    },
+    {
+      "group": "level",
+      "value": "200",
+      "n": 810,
+      "accuracy": 0.5333
+    },
+    {
+      "group": "level",
+      "value": "100",
+      "n": 805,
+      "accuracy": 0.5006
+    }
+  ],
+  "flags": []
+}

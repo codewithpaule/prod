@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class Student(models.Model):
@@ -94,3 +95,24 @@ class AdvisorNote(models.Model):
 
     def __str__(self) -> str:
         return f'Note for {self.student.student_ref}'
+
+
+class TrainingBatch(models.Model):
+    """Records each batch of real training data uploaded to the system.
+
+    Rows are stored as a JSON list so they can be accumulated and replayed
+    every time the model is retrained (incremental / continual learning).
+    """
+    name = models.CharField(max_length=120, blank=True, default='')
+    uploaded_by = models.CharField(max_length=120, blank=True, default='')
+    row_count = models.IntegerField(default=0)
+    rows = models.JSONField(default=list)
+    accuracy_after = models.FloatField(null=True, blank=True)
+    bias_report = models.JSONField(default=dict, blank=True)
+    uploaded_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self) -> str:
+        return f'Batch {self.pk}: {self.row_count} rows ({self.uploaded_at:%Y-%m-%d})'

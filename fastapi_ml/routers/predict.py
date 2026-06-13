@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
@@ -14,6 +16,9 @@ from schemas import (
 
 router = APIRouter(tags=["predict"])
 logger = logging.getLogger("acadpredict.routers.predict")
+
+HERE = Path(__file__).resolve().parent.parent
+BIAS_REPORT_PATH = HERE / "ml" / "bias_report.json"
 
 
 @router.post("/predict", response_model=PredictionResult)
@@ -47,6 +52,14 @@ async def get_feature_importance() -> list[FeatureScore]:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@router.get("/bias-report")
+async def get_bias_report() -> dict:
+    """Return the most recent fairness/bias audit report."""
+    if BIAS_REPORT_PATH.exists():
+        return json.loads(BIAS_REPORT_PATH.read_text())
+    return {"overall_accuracy": None, "subgroup_checks": [], "flags": []}
+
+
 @router.post("/train", response_model=TrainResponse)
 async def train_model(request: TrainRequest) -> TrainResponse:
     """Retrain the model with real survey data blended with synthetic rows."""
@@ -59,7 +72,7 @@ async def train_model(request: TrainRequest) -> TrainResponse:
             row["performance_class"] = tr.label
             real_rows.append(row)
 
-        accuracy, total = await asyncio.to_thread(
+        accuracy, total, bias_report = await asyncio.to_thread(
             train_with_real_data,
             real_rows,
             request.use_synthetic,
@@ -69,9 +82,10 @@ async def train_model(request: TrainRequest) -> TrainResponse:
         logger.info("Model retrained with %d rows. Accuracy=%.3f", total, accuracy)
         return TrainResponse(
             success=True,
-            message=f"Model retrained successfully with {total} rows.",
+            message=f"Model retrained successfully with {total} total rows.",
             rows_used=total,
             accuracy=round(accuracy, 4),
+            bias_report=bias_report,
         )
     except Exception as exc:
         logger.exception("Training failed: %s", exc)

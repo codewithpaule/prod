@@ -20,7 +20,7 @@ from . import ml_client
 from .choices import CATEGORIES
 from .csv_utils import CSV_COLUMNS, build_sample_csv, parse_upload, parse_google_form_file
 from .forms import StudentForm, UploadForm, TrainUploadForm
-from .models import Prediction, Student
+from .models import Prediction, Student, TrainingBatch
 from .services import save_prediction
 
 
@@ -209,7 +209,16 @@ def export_view(request):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def train_model_view(request):
-    """Upload Google Form data to retrain the prediction model."""
+    """Upload Google Form data to retrain the prediction model.
+
+    Every upload is saved permanently to the TrainingBatch pool so the model
+    always learns from ALL historical data combined (incremental / continual
+    learning). Bias metrics are shown after each training run.
+    """
+    bias_report = None
+    accuracy_pct = None
+    rows_used = None
+
     if request.method == 'POST':
         form = TrainUploadForm(request.POST, request.FILES)
         if form.is_valid():
@@ -217,40 +226,81 @@ def train_model_view(request):
             use_synthetic = form.cleaned_data.get('use_synthetic', True)
             synthetic_n = form.cleaned_data.get('synthetic_n') or 3000
 
-            training_rows, parse_errors, total_raw = parse_google_form_file(data_file)
+            new_rows, parse_errors, total_raw = parse_google_form_file(data_file)
 
             for err in parse_errors[:10]:
                 messages.warning(request, err)
             if len(parse_errors) > 10:
                 messages.warning(request, f'…and {len(parse_errors) - 10} more warnings.')
 
-            if not training_rows:
+            if not new_rows:
                 messages.error(
                     request,
                     f'No valid training rows extracted from {total_raw} raw rows. '
                     'Please check the file format and column headers match the survey questions.'
                 )
             else:
+                # Save this batch to the persistent pool
+                batch = TrainingBatch.objects.create(
+                    name=getattr(data_file, 'name', 'upload'),
+                    uploaded_by=request.user.username,
+                    row_count=len(new_rows),
+                    rows=new_rows,
+                )
+
+                # Collect ALL historical batches from the pool
+                all_rows: list[dict] = []
+                for b in TrainingBatch.objects.all().order_by('uploaded_at'):
+                    all_rows.extend(b.rows)
+
                 try:
                     result = ml_client.retrain_model(
-                        rows=training_rows,
+                        rows=all_rows,
                         use_synthetic=use_synthetic,
                         synthetic_n=synthetic_n,
                     )
                     acc = result.get('accuracy')
-                    acc_str = f', accuracy: {acc:.1%}' if acc is not None else ''
+                    bias_report = result.get('bias_report') or {}
+
+                    # Multiply sub-accuracies to percentage for template display
+                    if bias_report.get('overall_accuracy') is not None:
+                        bias_report['overall_accuracy'] = round(
+                            bias_report['overall_accuracy'] * 100, 1
+                        )
+                    for sg in bias_report.get('subgroup_checks', []):
+                        sg['accuracy'] = round(sg.get('accuracy', 0) * 100, 1)
+
+                    # Persist accuracy on this batch
+                    batch.accuracy_after = acc
+                    batch.bias_report = bias_report
+                    batch.save(update_fields=['accuracy_after', 'bias_report'])
+
+                    accuracy_pct = round((acc or 0) * 100, 1)
+                    rows_used = result.get('rows_used')
                     messages.success(
                         request,
-                        f"Model retrained successfully! Used {len(training_rows)} real rows "
-                        f"from {total_raw} uploaded rows{acc_str}."
+                        f"Model retrained with {len(all_rows)} real rows from "
+                        f"{TrainingBatch.objects.count()} batch(es). "
+                        f"Validation accuracy: {accuracy_pct}%."
                     )
-                    return redirect('dashboard')
                 except ml_client.MLServiceError as exc:
                     messages.error(request, f'Model training failed: {exc}')
     else:
         form = TrainUploadForm()
 
-    return render(request, 'train.html', {'form': form, 'active': 'train'})
+    batches = TrainingBatch.objects.all().order_by('uploaded_at')
+    total_pool_rows = sum(b.row_count for b in batches)
+
+    ctx = {
+        'form': form,
+        'active': 'train',
+        'batches': batches,
+        'total_pool_rows': total_pool_rows,
+        'bias_report': bias_report,
+        'accuracy_pct': accuracy_pct,
+        'rows_used': rows_used,
+    }
+    return render(request, 'train.html', ctx)
 
 
 def custom_404(request, exception):

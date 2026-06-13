@@ -1,7 +1,7 @@
 """Pydantic request/response models for the AcadPredict ML service."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -60,11 +60,25 @@ class TrainRequest(BaseModel):
     synthetic_n: int = Field(default=3000, ge=100, le=10000)
 
 
+class BiasFlag(BaseModel):
+    group: str
+    value: str
+    n: int
+    accuracy: float
+
+
+class BiasReport(BaseModel):
+    overall_accuracy: float
+    subgroup_checks: list[BiasFlag] = []
+    flags: list[str] = []
+
+
 class TrainResponse(BaseModel):
     success: bool
     message: str
     rows_used: int
     accuracy: Optional[float] = None
+    bias_report: Optional[dict[str, Any]] = None
 
 
 class FeatureScore(BaseModel):

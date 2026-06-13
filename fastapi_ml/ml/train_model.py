@@ -1,8 +1,8 @@
 """Train and compare models for AcadPredict AI.
 
-Generates a realistic synthetic dataset of Nigerian university students, then
-optionally blends with real survey rows uploaded by the admin. Trains four
-classifiers and persists the best-performing Random Forest to ``model.pkl``.
+Generates a realistic synthetic dataset, optionally blends with real survey
+rows, and trains four classifiers. Includes fairness/bias detection that
+checks prediction accuracy across demographic subgroups.
 
 Run:  python -m ml.train_model   (from the fastapi_ml/ directory)
 """
@@ -16,7 +16,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
@@ -35,6 +35,7 @@ HERE = Path(__file__).resolve().parent
 MODEL_PATH = HERE / "model.pkl"
 PREPROCESSOR_PATH = HERE / "preprocessor.pkl"
 FEATURE_IMPORTANCE_PATH = HERE / "feature_importance.json"
+BIAS_REPORT_PATH = HERE / "bias_report.json"
 
 FEATURES = list(CATEGORIES.keys())
 RNG = np.random.default_rng(42)
@@ -167,9 +168,7 @@ def generate_synthetic_data(n: int = 4000) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def encode_features(
-    df: pd.DataFrame,
-) -> tuple[pd.DataFrame, dict[str, LabelEncoder]]:
+def encode_features(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, LabelEncoder]]:
     encoders: dict[str, LabelEncoder] = {}
     encoded = pd.DataFrame()
     for feature in FEATURES:
@@ -196,14 +195,53 @@ def _evaluate(name: str, model, X: np.ndarray, y: np.ndarray) -> dict[str, float
         "accuracy": accuracy_score(y, preds),
         "f1": f1_score(y, preds, average="weighted", zero_division=0),
     }
-    print(
-        f"{name:<18} acc={metrics['accuracy']:.3f} f1={metrics['f1']:.3f}"
-    )
+    print(f"{name:<18} acc={metrics['accuracy']:.3f} f1={metrics['f1']:.3f}")
     return metrics
 
 
-def train_from_dataframe(df: pd.DataFrame, verbose: bool = True) -> float:
-    """Core training routine. Returns validation accuracy."""
+def check_bias(df: pd.DataFrame, y_pred: np.ndarray, target_encoder: LabelEncoder) -> dict:
+    """Check accuracy parity across gender and level subgroups.
+
+    Returns a dict describing any subgroups with accuracy more than 10pp
+    below the overall — these are potential bias flags.
+    """
+    y_true_labels = df["performance_class"].values
+    y_pred_labels = target_encoder.inverse_transform(y_pred)
+
+    overall_acc = float(np.mean(y_true_labels == y_pred_labels))
+    threshold = overall_acc - 0.10  # flag if more than 10pp below overall
+
+    bias_flags: list[dict] = []
+    report: dict = {"overall_accuracy": round(overall_acc, 4), "subgroup_checks": [], "flags": []}
+
+    for group_col in ("gender", "level"):
+        if group_col not in df.columns:
+            continue
+        for group_val in df[group_col].unique():
+            mask = df[group_col] == group_val
+            if mask.sum() < 5:
+                continue
+            grp_acc = float(np.mean(y_true_labels[mask] == y_pred_labels[mask]))
+            entry = {
+                "group": group_col,
+                "value": str(group_val),
+                "n": int(mask.sum()),
+                "accuracy": round(grp_acc, 4),
+            }
+            report["subgroup_checks"].append(entry)
+            if grp_acc < threshold:
+                flag = f"WARNING: {group_col}={group_val} accuracy={grp_acc:.1%} is >10pp below overall ({overall_acc:.1%})"
+                report["flags"].append(flag)
+                print(f"  BIAS FLAG — {flag}")
+
+    if not report["flags"]:
+        print("  No significant bias detected across gender/level subgroups.")
+
+    return report
+
+
+def train_from_dataframe(df: pd.DataFrame, verbose: bool = True) -> tuple[float, dict]:
+    """Core training routine. Returns (validation_accuracy, bias_report)."""
     X_df, encoders = encode_features(df)
     target_encoder = LabelEncoder()
     target_encoder.fit(PERFORMANCE_CLASSES)
@@ -212,21 +250,33 @@ def train_from_dataframe(df: pd.DataFrame, verbose: bool = True) -> float:
 
     if HAS_SMOTE and len(np.unique(y)) > 1:
         if verbose:
-            print("Applying SMOTE for class balance…")
+            print("Applying SMOTE to balance classes …")
         try:
-            X, y = SMOTE(random_state=42).fit_resample(X, y)
+            X_res, y_res = SMOTE(random_state=42).fit_resample(X, y)
+            print(f"  After SMOTE: {len(y_res)} rows (was {len(y)})")
+            X, y = X_res, y_res
         except Exception as exc:
             if verbose:
-                print(f"SMOTE skipped: {exc}")
+                print(f"  SMOTE skipped: {exc}")
 
     if verbose:
-        print("\nCross-validated comparison (5-fold):")
+        print("\nCross-validated model comparison (5-fold):")
     results: dict[str, dict[str, float]] = {}
     for name, model in _build_models().items():
         results[name] = _evaluate(name, model, X, y)
 
-    primary = RandomForestClassifier(n_estimators=150, random_state=42)
+    primary = RandomForestClassifier(n_estimators=200, random_state=42, class_weight="balanced")
+
+    if verbose:
+        print("\nBias / fairness check (cross-validated, original distribution):")
+    skf_bias = StratifiedKFold(n_splits=5, shuffle=True, random_state=99)
+    X_orig_df, _ = encode_features(df)
+    y_orig = target_encoder.transform(df["performance_class"])
+    y_pred_cv = cross_val_predict(primary, X_orig_df.to_numpy(), y_orig, cv=skf_bias)
+    bias_report = check_bias(df, y_pred_cv, target_encoder)
+
     primary.fit(X, y)
+
     joblib.dump(primary, MODEL_PATH)
 
     preprocessor = {
@@ -246,14 +296,15 @@ def train_from_dataframe(df: pd.DataFrame, verbose: bool = True) -> float:
         reverse=True,
     )
     FEATURE_IMPORTANCE_PATH.write_text(json.dumps(importances, indent=2))
+    BIAS_REPORT_PATH.write_text(json.dumps(bias_report, indent=2))
 
     if verbose:
-        print("\nFeature importance:")
+        print("\nTop feature importances:")
         for item in importances[:10]:
             print(f"  {item['feature']:<22} {item['importance']:.4f}")
-        print(f"\nSaved: {MODEL_PATH.name}, {PREPROCESSOR_PATH.name}")
+        print(f"\nSaved model, preprocessor, feature_importance, bias_report.")
 
-    return float(results["RandomForest"]["accuracy"])
+    return float(results["RandomForest"]["accuracy"]), bias_report
 
 
 def train_with_real_data(
@@ -262,9 +313,7 @@ def train_with_real_data(
     synthetic_n: int = 3000,
 ) -> tuple[float, int]:
     """Blend real survey rows with synthetic data and retrain.
-
     Returns (accuracy, total_rows_used).
-    Each real_row dict must have all feature keys + 'performance_class'.
     """
     frames: list[pd.DataFrame] = []
 
@@ -273,31 +322,41 @@ def train_with_real_data(
         for feature, options in CATEGORIES.items():
             if feature in real_df.columns:
                 real_df = real_df[real_df[feature].isin(options)]
-        real_df = real_df[[*FEATURES, "performance_class"]].dropna()
+        cols = [f for f in FEATURES if f in real_df.columns] + ["performance_class"]
+        real_df = real_df[cols].dropna()
+
+        # Fill any missing features with the most common value (median imputation)
+        for feat in FEATURES:
+            if feat not in real_df.columns:
+                real_df[feat] = CATEGORIES[feat][0]
+
         if not real_df.empty:
-            frames.append(real_df)
+            frames.append(real_df[[*FEATURES, "performance_class"]])
+            print(f"Real data: {len(real_df)} rows")
+            print("Real class distribution:\n", real_df["performance_class"].value_counts().to_string())
 
     if use_synthetic:
         synth_df = generate_synthetic_data(synthetic_n)
         frames.append(synth_df[[*FEATURES, "performance_class"]])
+        print(f"Synthetic data: {synthetic_n} rows")
 
     if not frames:
         raise ValueError("No valid training rows provided.")
 
     df = pd.concat(frames, ignore_index=True)
-    print(f"Total training rows: {len(df)}")
-    print("Class distribution:\n", df["performance_class"].value_counts())
+    print(f"\nTotal training rows: {len(df)}")
+    print("Overall class distribution:\n", df["performance_class"].value_counts().to_string())
 
-    accuracy = train_from_dataframe(df)
-    return accuracy, len(df)
+    accuracy, bias_report = train_from_dataframe(df)
+    return accuracy, len(df), bias_report
 
 
 def main() -> None:
-    print("Generating synthetic dataset…")
+    print("Generating synthetic dataset …")
     n = int(os.environ.get("TRAIN_SAMPLES", "5000"))
     df = generate_synthetic_data(n)
     print(f"Dataset size: {len(df)}")
-    print("Class distribution:\n", df["performance_class"].value_counts())
+    print("Class distribution:\n", df["performance_class"].value_counts().to_string())
     train_from_dataframe(df)
 
 
