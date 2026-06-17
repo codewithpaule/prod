@@ -92,6 +92,15 @@ def parse_google_form_file(file_obj) -> tuple[list[dict], list[str], int]:
 
     raw_bytes = file_obj.read()
 
+    # Some exports arrive as a zip archive containing a CSV (e.g. responses.csv).
+    if isinstance(raw_bytes, bytes) and raw_bytes[:2] == b'PK':
+        import zipfile
+        with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
+            for name in zf.namelist():
+                if name.lower().endswith('.csv'):
+                    raw_bytes = zf.read(name)
+                    break
+
     if name.lower().endswith(('.xlsx', '.xls')):
         try:
             import openpyxl

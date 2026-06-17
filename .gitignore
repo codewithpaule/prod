@@ -24,6 +24,7 @@ media/
 # NOTE: ML artifacts (model.pkl, preprocessor.pkl, feature_importance.json) are
 # committed so the service runs out of the box. Regenerate with:
 #   cd fastapi_ml && python -m ml.train_model
+# Training data: responses.csv at the repo root.
 
 # OS / editor
 .DS_Store

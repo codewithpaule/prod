@@ -1,2 +1,0 @@
-- [AcadPredict project overview](acadpredict-overview.md) — Django+FastAPI app, 26-feature CGPA-band predictor for Nigerian uni students.
-- [Training data pipeline](training-pipeline.md) — Real CSV parsing, TrainingBatch pool, bias checking, incremental learning design.

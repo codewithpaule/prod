@@ -223,7 +223,7 @@ def train_model_view(request):
         form = TrainUploadForm(request.POST, request.FILES)
         if form.is_valid():
             data_file = form.cleaned_data['data_file']
-            use_synthetic = form.cleaned_data.get('use_synthetic', True)
+            use_synthetic = form.cleaned_data.get('use_synthetic', False)
             synthetic_n = form.cleaned_data.get('synthetic_n') or 3000
 
             new_rows, parse_errors, total_raw = parse_google_form_file(data_file)

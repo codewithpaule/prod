@@ -17,7 +17,7 @@ DEBUG = os.environ.get("DEBUG", "False").lower() in {"1", "true", "yes"}
 
 ALLOWED_HOSTS = ["*"]
 
-# Railway / Replit proxy support
+# Railway / reverse-proxy support
 _csrf_origins = os.environ.get("CSRF_TRUSTED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(",") if o.strip()]
 

@@ -85,8 +85,8 @@ class TrainUploadForm(forms.Form):
     )
     use_synthetic = forms.BooleanField(
         required=False,
-        initial=True,
-        label='Blend with synthetic data (recommended when real rows < 500)',
+        initial=False,
+        label='Blend with synthetic data (optional — only if you have very few responses)',
         widget=forms.CheckboxInput(attrs={'class': 'checkbox'}),
     )
     synthetic_n = forms.IntegerField(

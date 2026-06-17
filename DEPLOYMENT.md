@@ -36,7 +36,8 @@ from <https://console.groq.com>.
    | `MODEL_PATH`        | `ml/model.pkl`                   |
    | `PREPROCESSOR_PATH` | `ml/preprocessor.pkl`            |
 4. The trained `model.pkl` / `preprocessor.pkl` are committed to the repo. To
-   retrain, run `python -m ml.train_model` from `fastapi_ml/`.
+   retrain from your survey data, place `responses.csv` at the repo root and run
+   `python -m ml.train_model` from `fastapi_ml/`.
 5. After deploy, note the public URL, e.g. `https://acadpredict-ml.up.railway.app`.
 
 ## 3. Deploy the Django web service (Service 2)
@@ -94,7 +95,7 @@ settings, and add it to both `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS`.
 cd fastapi_ml
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m ml.train_model           # generates model.pkl + preprocessor.pkl
+python -m ml.train_model           # trains from ../responses.csv
 export GROQ_API_KEY=gsk_...         # optional; falls back to rule-based advice
 uvicorn main:app --reload --port 8001
 

@@ -56,7 +56,7 @@ class TrainingRow(BaseModel):
 
 class TrainRequest(BaseModel):
     rows: list[TrainingRow]
-    use_synthetic: bool = True
+    use_synthetic: bool = False
     synthetic_n: int = Field(default=3000, ge=100, le=10000)
 
 

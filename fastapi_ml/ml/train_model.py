@@ -1,15 +1,14 @@
 """Train and compare models for AcadPredict AI.
 
-Generates a realistic synthetic dataset, optionally blends with real survey
-rows, and trains four classifiers. Includes fairness/bias detection that
-checks prediction accuracy across demographic subgroups.
+Trains on real survey responses from responses.csv. Synthetic data blending
+is optional and disabled by default.
 
 Run:  python -m ml.train_model   (from the fastapi_ml/ directory)
+      python -m ml.train_from_real_data   (explicit CSV trainer)
 """
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import joblib
@@ -179,6 +178,12 @@ def encode_features(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, LabelEnco
     return encoded, encoders
 
 
+def _cv_folds(y: np.ndarray, max_splits: int = 5) -> int:
+    """Pick a stratified fold count that works for small / imbalanced datasets."""
+    min_class = int(np.bincount(y)[np.bincount(y) > 0].min())
+    return max(2, min(max_splits, min_class, len(y)))
+
+
 def _build_models() -> dict[str, object]:
     return {
         "LogisticRegression": LogisticRegression(max_iter=1000),
@@ -188,14 +193,19 @@ def _build_models() -> dict[str, object]:
     }
 
 
-def _evaluate(name: str, model, X: np.ndarray, y: np.ndarray) -> dict[str, float]:
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    preds = cross_val_predict(model, X, y, cv=skf)
+def _evaluate(name: str, model, X: np.ndarray, y: np.ndarray) -> dict[str, float] | None:
+    n_splits = _cv_folds(y)
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    try:
+        preds = cross_val_predict(model, X, y, cv=skf)
+    except ValueError as exc:
+        print(f"{name:<18} skipped ({exc})")
+        return None
     metrics = {
         "accuracy": accuracy_score(y, preds),
         "f1": f1_score(y, preds, average="weighted", zero_division=0),
     }
-    print(f"{name:<18} acc={metrics['accuracy']:.3f} f1={metrics['f1']:.3f}")
+    print(f"{name:<18} acc={metrics['accuracy']:.3f} f1={metrics['f1']:.3f} ({n_splits}-fold)")
     return metrics
 
 
@@ -249,29 +259,36 @@ def train_from_dataframe(df: pd.DataFrame, verbose: bool = True) -> tuple[float,
     X = X_df.to_numpy()
 
     if HAS_SMOTE and len(np.unique(y)) > 1:
-        if verbose:
-            print("Applying SMOTE to balance classes …")
-        try:
-            X_res, y_res = SMOTE(random_state=42).fit_resample(X, y)
-            print(f"  After SMOTE: {len(y_res)} rows (was {len(y)})")
-            X, y = X_res, y_res
-        except Exception as exc:
+        min_class = int(np.bincount(y)[np.bincount(y) > 0].min())
+        if min_class >= 6:
             if verbose:
-                print(f"  SMOTE skipped: {exc}")
+                print("Applying SMOTE to balance classes …")
+            try:
+                X_res, y_res = SMOTE(random_state=42).fit_resample(X, y)
+                print(f"  After SMOTE: {len(y_res)} rows (was {len(y)})")
+                X, y = X_res, y_res
+            except Exception as exc:
+                if verbose:
+                    print(f"  SMOTE skipped: {exc}")
+        elif verbose:
+            print(f"SMOTE skipped: smallest class has only {min_class} sample(s).")
 
+    n_splits = _cv_folds(y)
     if verbose:
-        print("\nCross-validated model comparison (5-fold):")
+        print(f"\nCross-validated model comparison ({n_splits}-fold):")
     results: dict[str, dict[str, float]] = {}
     for name, model in _build_models().items():
-        results[name] = _evaluate(name, model, X, y)
+        metrics = _evaluate(name, model, X, y)
+        if metrics is not None:
+            results[name] = metrics
 
     primary = RandomForestClassifier(n_estimators=200, random_state=42, class_weight="balanced")
 
     if verbose:
         print("\nBias / fairness check (cross-validated, original distribution):")
-    skf_bias = StratifiedKFold(n_splits=5, shuffle=True, random_state=99)
     X_orig_df, _ = encode_features(df)
     y_orig = target_encoder.transform(df["performance_class"])
+    skf_bias = StratifiedKFold(n_splits=_cv_folds(y_orig), shuffle=True, random_state=99)
     y_pred_cv = cross_val_predict(primary, X_orig_df.to_numpy(), y_orig, cv=skf_bias)
     bias_report = check_bias(df, y_pred_cv, target_encoder)
 
@@ -304,16 +321,19 @@ def train_from_dataframe(df: pd.DataFrame, verbose: bool = True) -> tuple[float,
             print(f"  {item['feature']:<22} {item['importance']:.4f}")
         print(f"\nSaved model, preprocessor, feature_importance, bias_report.")
 
-    return float(results["RandomForest"]["accuracy"]), bias_report
+    best_acc = results.get("RandomForest", {}).get("accuracy")
+    if best_acc is None and results:
+        best_acc = next(iter(results.values()))["accuracy"]
+    return float(best_acc or 0.0), bias_report
 
 
 def train_with_real_data(
     real_rows: list[dict],
-    use_synthetic: bool = True,
+    use_synthetic: bool = False,
     synthetic_n: int = 3000,
-) -> tuple[float, int]:
-    """Blend real survey rows with synthetic data and retrain.
-    Returns (accuracy, total_rows_used).
+) -> tuple[float, int, dict]:
+    """Train on real survey rows, optionally blended with synthetic data.
+    Returns (accuracy, total_rows_used, bias_report).
     """
     frames: list[pd.DataFrame] = []
 
@@ -352,12 +372,16 @@ def train_with_real_data(
 
 
 def main() -> None:
-    print("Generating synthetic dataset …")
-    n = int(os.environ.get("TRAIN_SAMPLES", "5000"))
-    df = generate_synthetic_data(n)
-    print(f"Dataset size: {len(df)}")
-    print("Class distribution:\n", df["performance_class"].value_counts().to_string())
-    train_from_dataframe(df)
+    from ml.train_from_real_data import DEFAULT_CSV, main as train_real
+
+    if DEFAULT_CSV.exists():
+        train_real(DEFAULT_CSV)
+        return
+
+    raise FileNotFoundError(
+        f"No training data found at {DEFAULT_CSV}. "
+        "Place your Google Form export as responses.csv at the repo root."
+    )
 
 
 if __name__ == "__main__":

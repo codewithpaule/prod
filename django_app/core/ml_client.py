@@ -45,7 +45,7 @@ def feature_importance(timeout: int = 15) -> list[dict]:
     return resp.json()
 
 
-def retrain_model(rows: list[dict], use_synthetic: bool = True, synthetic_n: int = 3000, timeout: int = 300) -> dict:
+def retrain_model(rows: list[dict], use_synthetic: bool = False, synthetic_n: int = 3000, timeout: int = 300) -> dict:
     payload = {
         'rows': rows,
         'use_synthetic': use_synthetic,

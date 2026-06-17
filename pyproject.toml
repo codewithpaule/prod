@@ -1,7 +1,7 @@
 [project]
-name = "repl-nix-workspace"
+name = "acadpredict"
 version = "0.1.0"
-description = "Add your description here"
+description = "AcadPredict AI — student academic performance prediction"
 requires-python = ">=3.12"
 dependencies = [
     "dj-database-url==2.3.0",

@@ -1,54 +1,50 @@
 {
-  "overall_accuracy": 0.5103,
+  "overall_accuracy": 0.9,
   "subgroup_checks": [
     {
       "group": "gender",
       "value": "Female",
-      "n": 1368,
-      "accuracy": 0.492
+      "n": 39,
+      "accuracy": 0.9231
     },
     {
       "group": "gender",
       "value": "Male",
-      "n": 1361,
-      "accuracy": 0.5437
-    },
-    {
-      "group": "gender",
-      "value": "Prefer not to say",
-      "n": 1331,
-      "accuracy": 0.4951
+      "n": 19,
+      "accuracy": 0.8421
     },
     {
       "group": "level",
       "value": "300",
-      "n": 823,
-      "accuracy": 0.5152
+      "n": 9,
+      "accuracy": 0.7778
     },
     {
       "group": "level",
       "value": "500",
-      "n": 763,
-      "accuracy": 0.5125
+      "n": 15,
+      "accuracy": 0.8
     },
     {
       "group": "level",
       "value": "400",
-      "n": 859,
-      "accuracy": 0.4913
+      "n": 8,
+      "accuracy": 0.875
     },
     {
       "group": "level",
       "value": "200",
-      "n": 810,
-      "accuracy": 0.5333
+      "n": 20,
+      "accuracy": 1.0
     },
     {
       "group": "level",
       "value": "100",
-      "n": 805,
-      "accuracy": 0.5006
+      "n": 8,
+      "accuracy": 1.0
     }
   ],
-  "flags": []
+  "flags": [
+    "WARNING: level=300 accuracy=77.8% is >10pp below overall (90.0%)"
+  ]
 }

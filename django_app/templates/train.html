@@ -95,7 +95,7 @@
           {{ form.synthetic_n }}
           {% if form.synthetic_n.errors %}<span class="field-error">{{ form.synthetic_n.errors|striptags }}</span>{% endif %}
           <p class="muted small" style="margin-top:0.3rem">
-            Blending synthetic rows helps prevent overfitting when you have fewer than 500 real responses.
+            Optional. Leave unchecked to train only on your real survey responses.
           </p>
         </div>
 
@@ -167,9 +167,9 @@
         <p style="margin-bottom:0.5rem">The model improves automatically each time you add data:</p>
         <div style="display:flex;flex-direction:column;gap:0.4rem">
           <div>🗂️ <strong>Upload Batch 1</strong> — e.g. 60 responses from this semester</div>
-          <div>📈 <strong>Model trains</strong> on Batch 1 + 3,000 synthetic rows</div>
-          <div>🗂️ <strong>Upload Batch 2</strong> — e.g. 80 more responses next semester</div>
-          <div>📈 <strong>Model retrains</strong> on Batch 1 + Batch 2 + synthetic rows</div>
+          <div>📈 <strong>Model trains</strong> on Batch 1 (your real responses only)</div>
+          <div>🗂️ <strong>Upload Batch 2</strong> — e.g. more responses next semester</div>
+          <div>📈 <strong>Model retrains</strong> on Batch 1 + Batch 2 combined</div>
           <div>✅ <strong>Accuracy improves</strong> as the pool grows</div>
         </div>
       </div>

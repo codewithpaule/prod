@@ -1,20 +1,22 @@
-"""Direct trainer for the Google Form survey CSV export.
+"""Trainer for Google Form survey exports (responses.csv).
 
-Handles all value variants seen in the specific form used for this project,
-then blends with synthetic data and retrains the model with bias checks.
+Parses real survey responses and retrains the model on that data only.
+Synthetic blending is optional and off by default.
 
-Run:  python -m ml.train_from_real_data <csv_path>   (from fastapi_ml/)
-Or:   python -m ml.train_from_real_data              (uses default path)
+Run:  python -m ml.train_from_real_data                    (from fastapi_ml/)
+Or:   python -m ml.train_from_real_data ../responses.csv
 """
 from __future__ import annotations
 
 import csv
+import io
 import sys
+import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-
-DEFAULT_CSV = Path("/tmp/survey_data/Untitled form.csv")
+REPO_ROOT = HERE.parent.parent
+DEFAULT_CSV = REPO_ROOT / "responses.csv"
 
 COL_TO_FEATURE: dict[str, str] = {
     "what is your gender": "gender",
@@ -232,64 +234,80 @@ def _norm_col(h: str) -> str:
     return h.strip().lower().rstrip("?").strip()
 
 
+def _read_csv_text(csv_path: Path) -> str:
+    """Read a plain CSV or a zip archive containing a CSV (Google Form export)."""
+    raw = csv_path.read_bytes()
+    if raw[:2] == b"PK":
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            for name in zf.namelist():
+                if name.lower().endswith(".csv"):
+                    return zf.read(name).decode("utf-8-sig", errors="replace")
+        raise ValueError(f"No CSV found inside zip archive: {csv_path}")
+    return raw.decode("utf-8-sig", errors="replace")
+
+
 def parse_csv(csv_path: Path) -> tuple[list[dict], list[str]]:
     rows: list[dict] = []
     skipped: list[str] = []
 
-    with open(csv_path, encoding="utf-8-sig", errors="replace") as f:
-        reader = csv.DictReader(f)
-        for i, raw_row in enumerate(reader, start=2):
-            features: dict[str, str] = {}
-            row_issues: list[str] = []
+    csv_text = _read_csv_text(csv_path)
+    reader = csv.DictReader(io.StringIO(csv_text))
+    for i, raw_row in enumerate(reader, start=2):
+        features: dict[str, str] = {}
+        row_issues: list[str] = []
 
-            for col, raw_val in raw_row.items():
-                norm_col = _norm_col(col)
-                feature = None
-                for pattern, feat in COL_TO_FEATURE.items():
-                    if pattern in norm_col:
-                        feature = feat
+        for col, raw_val in raw_row.items():
+            norm_col = _norm_col(col)
+            feature = None
+            for pattern, feat in COL_TO_FEATURE.items():
+                if pattern in norm_col:
+                    feature = feat
+                    break
+            if feature is None:
+                continue
+
+            raw_val = (raw_val or "").strip()
+            if not raw_val:
+                continue
+
+            vm = VALUE_MAP.get(feature, {})
+            canonical = vm.get(raw_val.lower())
+            if canonical is None:
+                for k, v in vm.items():
+                    if k in raw_val.lower() or raw_val.lower() in k:
+                        canonical = v
                         break
-                if feature is None:
-                    continue
+            if canonical is None:
+                row_issues.append(f"{feature}='{raw_val}'")
+            else:
+                features[feature] = canonical
 
-                raw_val = (raw_val or "").strip()
-                if not raw_val:
-                    continue
+        if len(features) < 15:
+            skipped.append(f"Row {i}: only {len(features)} features mapped, skipping.")
+            continue
 
-                vm = VALUE_MAP.get(feature, {})
-                canonical = vm.get(raw_val.lower())
-                if canonical is None:
-                    for k, v in vm.items():
-                        if k in raw_val.lower() or raw_val.lower() in k:
-                            canonical = v
-                            break
-                if canonical is None:
-                    row_issues.append(f"{feature}='{raw_val}'")
-                else:
-                    features[feature] = canonical
+        cgpa_val = features.get("current_cgpa")
+        label = CGPA_TO_CLASS.get(cgpa_val, "") if cgpa_val else ""
+        if not label:
+            skipped.append(f"Row {i}: could not determine class label, skipping.")
+            continue
 
-            if len(features) < 15:
-                skipped.append(f"Row {i}: only {len(features)} features mapped, skipping.")
-                continue
+        if row_issues:
+            skipped.append(f"Row {i}: unmapped values for {', '.join(row_issues[:3])}.")
 
-            cgpa_val = features.get("current_cgpa")
-            label = CGPA_TO_CLASS.get(cgpa_val, "") if cgpa_val else ""
-            if not label:
-                skipped.append(f"Row {i}: could not determine class label, skipping.")
-                continue
-
-            if row_issues:
-                skipped.append(f"Row {i}: unmapped values for {', '.join(row_issues[:3])}.")
-
-            rows.append({"features": features, "label": label})
+        rows.append({"features": features, "label": label})
 
     return rows, skipped
 
 
-def main(csv_path: Path | None = None) -> None:
-    from ml.train_model import train_with_real_data, generate_synthetic_data
+def main(csv_path: Path | None = None, use_synthetic: bool = False, synthetic_n: int = 3000) -> None:
+    from ml.train_model import train_with_real_data
 
     path = csv_path or DEFAULT_CSV
+    if not path.exists():
+        print(f"ERROR: Training file not found: {path}")
+        sys.exit(1)
+
     print(f"Parsing {path} …")
     rows, skipped = parse_csv(path)
     print(f"Valid rows: {len(rows)}, skipped: {len(skipped)}")
@@ -298,7 +316,7 @@ def main(csv_path: Path | None = None) -> None:
 
     if not rows:
         print("ERROR: No valid rows to train on.")
-        return
+        sys.exit(1)
 
     real_rows = []
     for r in rows:
@@ -306,8 +324,14 @@ def main(csv_path: Path | None = None) -> None:
         row["performance_class"] = r["label"]
         real_rows.append(row)
 
-    print(f"\nTraining with {len(real_rows)} real rows + 4000 synthetic rows …")
-    accuracy, total, bias = train_with_real_data(real_rows, use_synthetic=True, synthetic_n=4000)
+    if use_synthetic:
+        print(f"\nTraining with {len(real_rows)} real rows + {synthetic_n} synthetic rows …")
+    else:
+        print(f"\nTraining with {len(real_rows)} real rows only …")
+
+    accuracy, total, bias = train_with_real_data(
+        real_rows, use_synthetic=use_synthetic, synthetic_n=synthetic_n
+    )
     print(f"\nDone. Total rows used: {total}, Validation accuracy: {accuracy:.1%}")
     flags = bias.get("flags", [])
     if flags:

@@ -37,7 +37,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for full local + Railway/Supabase instruction
 ```bash
 # ML service
 cd fastapi_ml && pip install -r requirements.txt
-python -m ml.train_model
+python -m ml.train_model          # trains from ../responses.csv
 uvicorn main:app --port 8001
 
 # Web service

@@ -62,7 +62,7 @@ async def get_bias_report() -> dict:
 
 @router.post("/train", response_model=TrainResponse)
 async def train_model(request: TrainRequest) -> TrainResponse:
-    """Retrain the model with real survey data blended with synthetic rows."""
+    """Retrain the model with real survey responses."""
     from ml.train_model import train_with_real_data
 
     try:
